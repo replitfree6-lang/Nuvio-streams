@@ -190,7 +190,8 @@ async function tmdbTitles(tmdbId, mediaType) {
         if (det && det.text) {
             var j = JSON.parse(det.text);
             var dateStr = j.release_date || j.first_air_date || "";
-            var year = /^(\d{4})/.exec(dateStr) ? parseInt(RegExp.$1, 10) : null;
+            var yearM = /^(\d{4})/.exec(dateStr);
+            var year = yearM ? parseInt(yearM[1], 10) : null;
             push(j.title || j.name, year);
             push(j.original_title || j.original_name, year);
         }
@@ -529,9 +530,12 @@ if (typeof module !== "undefined" && module.exports) {
 }
 
 // ---------------------------------------------------------------------------
-// TEMPORARY DIAGNOSTIC — runs the fixed TMDB 603 (The Matrix, movie) flow
-// step by step against nepu.io AND the nepu.to mirror, and reports each
-// stage summary-first (the app Test UI collapses later entries).
+// TEMPORARY DIAGNOSTIC v2 — TMDB 603 flow, summary split so nothing
+// important truncates off the phone screen:
+//   entry 1 = the nepu.to mirror path + full flow result
+//   entry 2 = the nepu.io stages (already known: 403 CF) + environment
+//   entry 3 = extra probes: are /feeds, /ajax or full-browser-header
+//             requests exempt from the challenge on nepu.io?
 // ---------------------------------------------------------------------------
 
 var __origGetStreams = getStreams;
@@ -546,60 +550,47 @@ async function __probe(url, opts) {
         var r = await httpRequest(url, opts || {});
         return { ok: true, status: r.status, url: r.url, text: r.text || "", cf: __isCF(r.text) };
     } catch (e) {
-        return { ok: false, status: 0, url: url, text: "", cf: false, err: String(e && e.message ? e.message : e).slice(0, 60) };
+        return { ok: false, status: 0, url: url, text: "", cf: false, err: String(e && e.message ? e.message : e).slice(0, 40) };
     }
 }
 
-function __fmt(p) {
-    if (!p.ok) return "ERR(" + p.err + ")";
-    return String(p.status) + (p.cf ? " CF!" : "") + " " + Math.round((p.text ? p.text.length : 0) / 1024) + "KB";
+function __short(p) {
+    if (!p.ok) return "ERR";
+    return String(p.status) + (p.cf ? "CF" : "");
 }
 
 async function __diagGetStreams(tmdbId, mediaType, season, episode) {
-    var lines = [];
-    var detail = [];
+    var e1 = "", e2 = "", e3 = "";
     var realStreams = [];
     try {
-        detail.push("args id=" + tmdbId + " type=" + mediaType + " s=" + season + " e=" + episode + " setTimeout=" + (typeof setTimeout));
-
-        // A: TMDB control
         var titles = await tmdbTitles("603", "movie");
-        lines.push("A TMDB:" + (titles.length ? " OK '" + titles[0].title + " " + titles[0].year + "'" : " FAIL"));
+        var tmdbOk = titles.length ? ("TMDB ok " + (titles[0].year || "?")) : "TMDB FAIL";
 
-        // B: .io home
-        var b = await __probe("https://nepu.io/", { headers: { "Accept": "text/html" }, timeoutMs: 10000 });
-        lines.push("B io-home:" + __fmt(b));
-
-        // C: .io search
+        // nepu.io stages (settled last run, re-checked cheaply via search)
         var c = await __probe("https://nepu.io/search/The%20Matrix", { headers: { "Accept": "text/html" }, timeoutMs: 10000 });
         var cCards = c.ok && !c.cf ? parseSearchCards(c.text) : [];
-        lines.push("C io-search:" + __fmt(c) + " cards=" + cCards.length + (c.text.indexOf("list-title") > -1 ? " hasListTitle" : " NO-listTitle"));
-        detail.push("C finalUrl=" + c.url);
 
-        // D: .to home (mirror probe)
+        // nepu.to mirror stages
         var d = await __probe("https://nepu.to/", { headers: { "Accept": "text/html" }, timeoutMs: 10000 });
-        lines.push("D to-home:" + __fmt(d));
-
-        // E: .to search
         var e = await __probe("https://nepu.to/search/The%20Matrix", { headers: { "Accept": "text/html" }, timeoutMs: 10000 });
         var eCards = e.ok && !e.cf ? parseSearchCards(e.text) : [];
-        lines.push("E to-search:" + __fmt(e) + " cards=" + eCards.length);
-        detail.push("E finalUrl=" + e.url);
 
-        // Pick the working host flow: prefer .io cards, else .to cards.
         var host = null, cards = null;
         if (cCards.length) { host = "https://nepu.io"; cards = cCards; }
         else if (eCards.length) { host = "https://nepu.to"; cards = eCards; }
 
+        var fTxt = "F:-", gTxt = "G:-", hTxt = "H:-";
+        var detail3 = [];
+        if (d.err) detail3.push("Derr:" + d.err);
+        if (e.err) detail3.push("Eerr:" + e.err);
         if (host) {
             var movie = null;
             for (var i = 0; i < cards.length; i++) if (cards[i].kind === "movie") { movie = cards[i]; break; }
             if (movie) {
-                detail.push("F card=" + movie.href + " title=" + movie.rawTitle);
                 var f = await __probe(movie.href, { headers: { "Accept": "text/html" }, timeoutMs: 10000 });
                 var embeds = f.ok ? parseEmbedSources(f.text) : [];
-                lines.push("F watch(" + (host.indexOf(".to") > -1 ? "to" : "io") + "):" + __fmt(f) + " embeds=" + embeds.length);
-                detail.push("F finalUrl=" + f.url + " hasDataEmbed=" + (f.text.indexOf("data-embed") > -1));
+                fTxt = "F watch " + __short(f) + " emb" + embeds.length;
+                detail3.push("Furl:" + f.url);
                 if (embeds.length) {
                     var g = null;
                     try {
@@ -609,32 +600,55 @@ async function __diagGetStreams(tmdbId, mediaType, season, episode) {
                             body: "id=" + encodeURIComponent(embeds[0].id),
                             timeoutMs: 10000,
                         });
-                    } catch (err) { g = { status: 0, text: "", err: String(err && err.message ? err.message : err).slice(0, 60) }; }
+                    } catch (err) { g = { status: 0, text: "", err: String(err && err.message ? err.message : err).slice(0, 40) }; }
                     var media = g.text ? parseEmbedMedia(g.text, f.url).media : [];
-                    lines.push("G embed id=" + embeds[0].id + " label=" + embeds[0].label + ":" + (g.err ? " ERR(" + g.err + ")" : " " + g.status + " " + Math.round((g.text || "").length / 1024) + "KB") + " media=" + media.length);
-                    detail.push("G first200=" + (g.text || "").slice(0, 200).replace(/\s+/g, " "));
-                    if (media.length) detail.push("G media0=" + media[0].url);
+                    gTxt = "G ajax " + (g.err ? "ERR" : g.status) + " media" + media.length;
+                    if (media.length) detail3.push("media0:" + media[0].url.slice(0, 70));
+                    else detail3.push("Gbody:" + (g.text || "").slice(0, 120).replace(/\s+/g, " "));
                 }
-            } else {
-                lines.push("F watch: NO movie card among results");
             }
-            // Run the REAL production flow against the working host.
             var savedBase = BASE;
             BASE = host;
             try { realStreams = await __origGetStreams("603", "movie", null, null); } catch (err2) { realStreams = []; }
             BASE = savedBase;
-            lines.push("H realFlow(" + (host.indexOf(".to") > -1 ? "to" : "io") + ") streams=" + realStreams.length);
-        } else {
-            lines.push("F watch: SKIPPED (no cards on either host)");
-            lines.push("G embed: SKIPPED");
+            hTxt = "H real" + realStreams.length + "(" + (host.indexOf(".to") > -1 ? "to" : "io") + ")";
         }
-    } catch (e2) {
-        lines.push("DIAG THREW: " + String(e2 && e2.message ? e2.message : e2).slice(0, 80));
+
+        e1 = "D to " + __short(d) + " | E srch " + __short(e) + " cards" + eCards.length + " | " + fTxt + " | " + gTxt + " | " + hTxt;
+        e2 = "C ioSrch " + __short(c) + " cards" + cCards.length + " | " + tmdbOk + " | sT=" + (typeof setTimeout) + " args " + tmdbId + "/" + mediaType;
+
+        // Extra probes on .io: exempt paths / header shape
+        var p1 = await __probe("https://nepu.io/feeds/movies.php", { timeoutMs: 10000 });
+        var p2 = null;
+        try {
+            p2 = await httpRequest("https://nepu.io/ajax/embed", {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded", "X-Requested-With": "XMLHttpRequest", "Referer": "https://nepu.io/", "Accept": "text/html, */*" },
+                body: "id=1",
+                timeoutMs: 10000,
+            });
+        } catch (err3) { p2 = { status: 0, text: "" }; }
+        var p2cf = __isCF(p2.text || "");
+        var p3 = await __probe("https://nepu.io/search/The%20Matrix", {
+            headers: {
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.9",
+                "Sec-Fetch-Dest": "document",
+                "Sec-Fetch-Mode": "navigate",
+                "Sec-Fetch-Site": "none",
+                "Upgrade-Insecure-Requests": "1",
+            },
+            timeoutMs: 10000,
+        });
+        e3 = "P feeds " + __short(p1) + " | ajaxDirect " + p2.status + (p2cf ? "CF" : "") + " | fullHdr " + __short(p3) + " || " + detail3.join(" | ");
+    } catch (e9) {
+        e1 = "DIAG THREW: " + String(e9 && e9.message ? e9.message : e9).slice(0, 80);
     }
 
     var out = [];
-    out.push({ name: "DIAG SUMMARY - READ ME", title: lines.join(" | "), url: "https://nepu.io/", quality: "Auto", headers: {} });
-    out.push({ name: "DIAG DETAIL", title: detail.join(" | ").slice(0, 900), url: "https://nepu.io/", quality: "Auto", headers: {} });
+    out.push({ name: "DIAG2 MIRROR+FLOW", title: e1, url: "https://nepu.io/", quality: "Auto", headers: {} });
+    out.push({ name: "DIAG2 IO+ENV", title: e2, url: "https://nepu.io/", quality: "Auto", headers: {} });
+    out.push({ name: "DIAG2 PROBES", title: e3.slice(0, 400), url: "https://nepu.io/", quality: "Auto", headers: {} });
     for (var r = 0; r < realStreams.length; r++) out.push(realStreams[r]);
     return out;
 }

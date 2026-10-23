@@ -190,7 +190,8 @@ async function tmdbTitles(tmdbId, mediaType) {
         if (det && det.text) {
             var j = JSON.parse(det.text);
             var dateStr = j.release_date || j.first_air_date || "";
-            var year = /^(\d{4})/.exec(dateStr) ? parseInt(RegExp.$1, 10) : null;
+            var yearM = /^(\d{4})/.exec(dateStr);
+            var year = yearM ? parseInt(yearM[1], 10) : null;
             push(j.title || j.name, year);
             push(j.original_title || j.original_name, year);
         }
