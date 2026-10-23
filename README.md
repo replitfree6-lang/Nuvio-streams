@@ -45,23 +45,31 @@ from the app are coerced to numbers.
   `setTimeout` use (that runtime has none), and reads `Set-Cookie`
   through `getSetCookie()` / `headers.get()` / a full header scan,
   because the TV fetch layer hides it from the first two.
-- **Cloudflare:** nepu.io sits behind Cloudflare's managed challenge.
-  Whether a given network is challenged is Cloudflare's per-IP decision:
-  datacenter IPs get the interactive "Just a moment" page (which no
-  scraper can pass — it needs a real browser), while ordinary residential
-  connections are typically served directly. If the plugin returns no
-  streams on a network that the challenge blocks, that is the site's
-  gate, not a scraper failure; the same URL in a browser on that network
-  will show the challenge page.
+- **Cloudflare (confirmed blocker):** nepu.io sits behind Cloudflare's
+  managed challenge, and in-app diagnosis in October 2026 proved it is
+  served to the app's requests on **every** path tried (homepage,
+  search, RSS feeds, the `/ajax/embed` player endpoint) and with every
+  header shape, on both broadband and mobile-data connections: the gate
+  refuses non-browser clients outright, and passing it requires running
+  Cloudflare's JavaScript check, which no scraper can do. The known
+  mirror, nepu.to, did not answer at all on the tested networks. As long
+  as the site keeps this gate, this plugin returns no streams in the app
+  — that is the site's bot protection working as configured, not a
+  scraper failure. The site itself works normally in a browser, and
+  this plugin will start working unchanged if the site ever relaxes the
+  gate.
 
 ## Testing
 
 Validated against the site's real markup (archived snapshots of its
 listing and watch pages): search-card parsing (titles/years/types),
 type-safe title picking, watch-page source extraction and embed-response
-media/subtitle parsing all pass. A live run from the build server is
-blocked by the Cloudflare challenge described above, so the decisive
-live check is the in-app test on a residential connection.
+media/subtitle parsing all pass. The decisive in-app test was then run
+with a temporary staged diagnostic scraper (since removed): TMDB and the
+app runtime checked out fine, but every nepu.io request from the app —
+on Wi-Fi and on mobile data alike — was answered with the Cloudflare
+challenge, and nepu.to was unreachable. Conclusion: the scraper is
+correct; the site's bot gate is what stands between it and any streams.
 
 ## Files
 
