@@ -36,16 +36,18 @@ var TMDB_KEY = "1865f43a0549ca50d341dd9ab8b29f49";
 var UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36";
 var HTTP_TIMEOUT_MS = 12000;
 
-// Sources in the site's own list order (the "acme" list call goes first
-// because it returns multiple streams at once). turkce is movie-only.
+// Sources in the site's own server-list order, with Dcloud first (it is
+// the site's default server). The "acme" list call returns that source's
+// language variants (Hindi / Tamil / Telugu dubs) in one response.
+// turkce is movie-only.
 var SOURCES = [
-    { id: "acme", label: "Acme", list: true },
     { id: "dcloud", label: "Dcloud" },
+    { id: "acme", label: "Acme", list: true },
     { id: "tik", label: "TCloud" },
     { id: "ipcloud", label: "IPcloud" },
-    { id: "english", label: "English" },
-    { id: "hindi", label: "Hindi" },
     { id: "turkce", label: "Türkçe", movieOnly: true },
+    { id: "hindi", label: "Hindi" },
+    { id: "english", label: "English" },
 ];
 
 // ---------------------------------------------------------------------------
