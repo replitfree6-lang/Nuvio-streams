@@ -1,6 +1,10 @@
-/* Toonix (toonix.bond) Nuvio provider — v1.0.0 (draft)
+/* Toonix (toonix.bond) Nuvio provider — v1.0.1
  *
- * TV only. Uses the site's own first-party stream API (SORA server).
+ * TV only. Two servers:
+ *   SORA (default): the site's own first-party stream API.
+ *   Legacy: direct archive.org MP4s (no token/proxy). The URL is baked into
+ *     the server-rendered watch page (no XHR provides it at play time), so
+ *     the plugin extracts it from the watch-page HTML it already fetches.
  *
  * Verified site mechanics (from real DevTools captures on the site):
  *   - Watch page: https://toonix.bond/show/<slug>/<season>/<episode>
@@ -170,6 +174,33 @@ function toonixExtractT(html) {
   return null;
 }
 
+/* Extract Legacy-server direct media URLs from the watch-page HTML.
+ * Legacy serves plain public archive.org MP4s (verified: the file bytes
+ * match a DevTools Media capture exactly). No XHR provides the URL at play
+ * time, so it must be embedded in the server-rendered page. Prefer the
+ * stable https://archive.org/download/<item>/<path> form; fall back to
+ * datanode (dn*.archive.org) URLs only if no /download/ URL is present. */
+function toonixExtractLegacyUrls(html) {
+  if (!html) return [];
+  var found = [];
+  var seen = {};
+  function collect(re) {
+    var m;
+    while ((m = re.exec(html)) !== null) {
+      var u = String(m[0]).replace(/[.,;!?)\]]+$/, "");
+      if (u && !seen[u]) {
+        seen[u] = true;
+        found.push(u);
+      }
+    }
+  }
+  collect(/https:\/\/archive\.org\/download\/[^\s"'<>\\]+/g);
+  if (found.length === 0) {
+    collect(/https:\/\/[a-z0-9.-]+\.archive\.org\/[^\s"'<>\\]+/g);
+  }
+  return found;
+}
+
 function toonixTmdbTitle(tmdbId) {
   var base =
     "https://api.themoviedb.org/3/tv/" +
@@ -229,6 +260,7 @@ async function getStreams(tmdbId, mediaType, season, episode) {
     var episodeId = null;
     var tVal = null;
     var watchUrl = null;
+    var pageHtml = null;
     for (var i = 0; i < candidates.length && (!episodeId || !tVal); i++) {
       watchUrl = TOONIX_SITE + "/show/" + candidates[i] + "/" + season + "/" + episode;
       var html = null;
@@ -238,27 +270,51 @@ async function getStreams(tmdbId, mediaType, season, episode) {
         html = null;
       }
       if (html) {
+        pageHtml = html;
         if (!episodeId) episodeId = toonixExtractEpisodeId(html);
         if (!tVal) tVal = toonixExtractT(html);
       }
     }
-    if (!episodeId || !tVal || !watchUrl) return [];
-
-    var apiUrl = TOONIX_SITE + "/api/hydrax/" + episodeId + "?t=" + encodeURIComponent(tVal);
-    var data = await toonixGetJson(apiUrl, watchUrl);
-    if (!data || data.error || !data.qualities || !data.qualities.length) return [];
+    if (!watchUrl || !pageHtml) return [];
 
     var streams = [];
     var showLabel = info.name || ("TMDB " + tmdbId);
-    for (var q = 0; q < data.qualities.length; q++) {
-      var item = data.qualities[q];
-      if (!item || !item.src) continue;
-      var label = item.label || "Auto";
+
+    /* SORA server via the hydrax API. Independent try/catch: if this path
+     * fails, the Legacy extraction below still gets its chance. */
+    if (episodeId && tVal) {
+      try {
+        var apiUrl = TOONIX_SITE + "/api/hydrax/" + episodeId + "?t=" + encodeURIComponent(tVal);
+        var data = await toonixGetJson(apiUrl, watchUrl);
+        if (data && !data.error && data.qualities && data.qualities.length) {
+          for (var q = 0; q < data.qualities.length; q++) {
+            var item = data.qualities[q];
+            if (!item || !item.src) continue;
+            var label = item.label || "Auto";
+            streams.push({
+              name: "Toonix",
+              title: showLabel + " S" + season + " E" + episode + " - " + label,
+              url: item.src,
+              quality: label,
+              type: "mp4",
+              headers: {
+                Referer: TOONIX_SITE + "/",
+                "User-Agent": TOONIX_UA,
+              },
+            });
+          }
+        }
+      } catch (e) {}
+    }
+
+    /* Legacy server: direct archive.org MP4s from the watch-page HTML. */
+    var legacyUrls = toonixExtractLegacyUrls(pageHtml);
+    for (var l = 0; l < legacyUrls.length; l++) {
       streams.push({
-        name: "Toonix",
-        title: showLabel + " S" + season + " E" + episode + " - " + label,
-        url: item.src,
-        quality: label,
+        name: "Toonix Legacy",
+        title: showLabel + " S" + season + " E" + episode + " - Legacy",
+        url: legacyUrls[l],
+        quality: "Auto",
         type: "mp4",
         headers: {
           Referer: TOONIX_SITE + "/",
