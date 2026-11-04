@@ -1,21 +1,9 @@
 {
-  "description": "Nuvio plugin repository: Dulo (dulo.mov) and Toonix (toonix.bond) — streams via each site's own streams API.",
-  "name": "Dulo + Toonix",
+  "description": "Nuvio plugin repository: Toonix (toonix.bond) — TV/anime streams via the site's own streams API (SORA + Legacy servers).",
+  "name": "Toonix",
   "scrapers": [
     {
-      "description": "Streams from Dulo (dulo.mov): movies, TV shows and anime through the site's own streams API (Prime, Zenith, Chandra, Breeze, Pickle) with subtitles when available.",
-      "filename": "providers/dulo.js",
-      "id": "dulo",
-      "logo": "https://dulo.mov/favicon.svg",
-      "name": "Dulo",
-      "supportedTypes": [
-        "movie",
-        "tv"
-      ],
-      "version": "1.0.0"
-    },
-    {
-      "description": "Streams from Toonix (toonix.bond): TV shows and anime through the site's own hydrax streams API (480p/360p MP4, SORA server).",
+      "description": "Streams from Toonix (toonix.bond): TV shows and anime through the site's own streams API — SORA server (480p/360p MP4) and Legacy server (direct archive.org MP4).",
       "filename": "providers/toonix.js",
       "id": "toonix",
       "name": "Toonix",
@@ -25,5 +13,5 @@
       "version": "1.0.1"
     }
   ],
-  "version": "1.0.0"
+  "version": "1.0.1"
 }
