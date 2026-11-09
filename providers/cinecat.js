@@ -93,6 +93,12 @@ function formatStreamLabel(o) {
 //   host (verified 2026-11-10: 0 bytes in 60s, all three proxies, Matrix
 //   and Breaking Bad), so its streams only buffer forever in the app. Only
 //   servers whose segments actually serve are emitted.
+//   ZCDN is a separate fast path (GET <zcdn>/cdn?tmdb=...&type=... ->
+//   {ready, url}). The user confirmed on their phone that ZCDN gives the
+//   FULL movie. From this VM /cdn only ever returns the 12-second promo
+//   clip (https://zcdn*/promo/cinecat-4k/v2/master.m3u8 — 3 x 4s segments),
+//   so the provider only emits a ZCDN stream when the returned url is NOT
+//   a "/promo/" URL; a promo url is skipped, never emitted as a stream.
 
 var CINECAT_API = "https://edge.cinecat.eu";
 var CINECAT_REFERER = "https://cinecat.eu/";
@@ -105,6 +111,11 @@ var CINECAT_SOURCES = ["abyssinia", "calico", "zanzibar"];
 // verified 2026-11-10, 0 bytes in 60s, all three proxies, Matrix and
 // Breaking Bad), so Garfield streams only buffer forever in the app.
 // If it ever recovers, add "garfield" back here.
+var CINECAT_ZCDN_HOSTS = [
+  "https://zcdn1.2wwlgkfo-31a.workers.dev",
+  "https://zcdn2.2wwlgkfo-31a.workers.dev",
+  "https://zcdn3.2wwlgkfo-31a.workers.dev"
+];
 var CINECAT_TMDB_KEY = "d80ba92bc7cefe3359668d30d06f3305";
 
 // ---- fetch helpers (webOS-safe) ----
@@ -245,6 +256,44 @@ function cinecatOneSource(name, tmdbId, isTv, season, episode) {
   });
 }
 
+// ---- ZCDN fast path ----
+// GET <zcdn>/cdn?tmdb=<id>&type=movie|tv[&season=&episode=] -> {ready, url}.
+// The site plays url as the "zcdn" stream when ready. From this VM /cdn
+// only ever returns the 12-second promo clip (a "/promo/" url), so a
+// "/promo/" url is NEVER emitted — only a real (non-promo) movie url is.
+// The user confirmed ZCDN gives the full movie on their network.
+function cinecatZcdn(tmdbId, isTv, season, episode) {
+  var q =
+    "tmdb=" +
+    encodeURIComponent(String(tmdbId)) +
+    "&type=" +
+    (isTv ? "tv" : "movie");
+  if (isTv) {
+    q += "&season=" + encodeURIComponent(String(season));
+    q += "&episode=" + encodeURIComponent(String(episode));
+  }
+  var jobs = CINECAT_ZCDN_HOSTS.map(function (host) {
+    var url = host + "/cdn?" + q;
+    return cinecatGetJson(url, { "User-Agent": CINECAT_UA }, CINECAT_TIMEOUT_MS).then(
+      function (j) {
+        if (!j || !j.ready) return null;
+        if (typeof j.url !== "string") return null;
+        var u = j.url;
+        if (u.indexOf("http://") !== 0 && u.indexOf("https://") !== 0) return null;
+        // The promo clip is a 12-second intro, not the movie — never emit it.
+        if (u.indexOf("/promo/") !== -1) return null;
+        return u;
+      }
+    );
+  });
+  return Promise.all(jobs).then(function (results) {
+    for (var i = 0; i < results.length; i++) {
+      if (results[i]) return results[i];
+    }
+    return null;
+  });
+}
+
 // ---- entry point ----
 
 function getStreams(tmdbId, mediaType, season, episode) {
@@ -259,10 +308,12 @@ function getStreams(tmdbId, mediaType, season, episode) {
   }
   return Promise.all([
     cinecatTmdbTitle(id, isTv),
-    cinecatSourceNames()
+    cinecatSourceNames(),
+    cinecatZcdn(id, isTv, sn, ep)
   ]).then(function (res) {
     var title = res[0] || "";
     var names = res[1] || CINECAT_SOURCES.slice();
+    var zcdnUrl = res[2] || null;
     var jobs = names.map(function (name) {
       return cinecatOneSource(name, id, isTv, sn, ep).then(function (list) {
         for (var i = 0; i < list.length; i++) {
@@ -289,6 +340,24 @@ function getStreams(tmdbId, mediaType, season, episode) {
       });
     });
     return Promise.all(jobs).then(function () {
+      if (zcdnUrl) {
+        var zcdnLabel = formatStreamLabel({
+          title: title,
+          quality: "Unknown",
+          season: isTv ? sn : undefined,
+          episode: isTv ? ep : undefined,
+          source: "CineCat",
+          server: "ZCDN"
+        });
+        push({
+          name: zcdnLabel,
+          title: zcdnLabel,
+          url: zcdnUrl,
+          quality: "Unknown",
+          headers: { Referer: CINECAT_REFERER, "User-Agent": CINECAT_UA },
+          type: "hls"
+        });
+      }
       return streams;
     });
   }).catch(function () {
