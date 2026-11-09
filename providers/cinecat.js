@@ -87,14 +87,24 @@ function formatStreamLabel(o) {
 //   Title comes from TMDB (same key the DoFlix provider uses); a failed
 //   lookup just omits the title from the label. webOS-safe, never throws.
 //   The backends 502 often and flap per title, so a failed source request
-//   gets one retry — that is what keeps all four servers contributing.
+//   gets one retry — that is what keeps the servers contributing.
+//   Garfield is EXCLUDED (see CINECAT_SOURCES): its playlists load, but its
+//   video segments never arrive — the proxy hangs waiting on Garfield's file
+//   host (verified 2026-11-10: 0 bytes in 60s, all three proxies, Matrix
+//   and Breaking Bad), so its streams only buffer forever in the app. Only
+//   servers whose segments actually serve are emitted.
 
 var CINECAT_API = "https://edge.cinecat.eu";
 var CINECAT_REFERER = "https://cinecat.eu/";
 var CINECAT_UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36";
 var CINECAT_TIMEOUT_MS = 12000;
-var CINECAT_SOURCES = ["abyssinia", "calico", "zanzibar", "garfield"];
+var CINECAT_SOURCES = ["abyssinia", "calico", "zanzibar"];
+// Garfield is deliberately NOT in this list: its playlists load, but its
+// video segments never arrive (the proxy hangs on Garfield's file host —
+// verified 2026-11-10, 0 bytes in 60s, all three proxies, Matrix and
+// Breaking Bad), so Garfield streams only buffer forever in the app.
+// If it ever recovers, add "garfield" back here.
 var CINECAT_TMDB_KEY = "d80ba92bc7cefe3359668d30d06f3305";
 
 // ---- fetch helpers (webOS-safe) ----
@@ -188,6 +198,8 @@ function cinecatSourceNames() {
     for (var i = 0; i < j.sources.length; i++) {
       var n = j.sources[i] && j.sources[i].name;
       if (typeof n === "string" && /^[A-Za-z0-9_-]{1,40}$/.test(n)) {
+        // Skip garfield: its segments never serve (see CINECAT_SOURCES).
+        if (n === "garfield") continue;
         names.push(n);
       }
     }
