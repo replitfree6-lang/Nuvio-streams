@@ -11,6 +11,17 @@
         "tv"
       ],
       "version": "1.0.1"
+    },
+    {
+      "description": "Streams from DoFlix: movies and TV via the DoFlix app's own sources — Dotflix direct file links (recent/popular movies) and SuperStream HLS (TV + select titles).",
+      "filename": "providers/dooflix.js",
+      "id": "dooflix",
+      "name": "DoFlix",
+      "supportedTypes": [
+        "movie",
+        "tv"
+      ],
+      "version": "1.0.0"
     }
   ],
   "version": "1.0.1"
