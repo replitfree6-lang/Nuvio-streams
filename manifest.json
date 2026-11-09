@@ -1,28 +1,7 @@
 {
-  "description": "Nuvio plugin repository: Toonix (toonix.bond) \u2014 TV/anime streams via the site's own streams API (SORA + Legacy servers).",
-  "name": "Toonix",
+  "description": "Nuvio plugin repository: CineCat (cinecat.eu) \u2014 movies and TV streams via the site's own sources API (first-party HLS streams).",
+  "name": "CineCat",
   "scrapers": [
-    {
-      "description": "Streams from Toonix (toonix.bond): TV shows and anime through the site's own streams API \u2014 SORA server (480p/360p MP4) and Legacy server (direct archive.org MP4).",
-      "filename": "providers/toonix.js",
-      "id": "toonix",
-      "name": "Toonix",
-      "supportedTypes": [
-        "tv"
-      ],
-      "version": "1.0.1"
-    },
-    {
-      "description": "Streams from DoFlix: movies and TV via the DoFlix app's own sources \u2014 Fast direct file links (Cloudflare R2, playable) and SuperStream HLS (TV + select titles). Direct download links are excluded: their host does not support seeking, so the player cannot play them.",
-      "filename": "providers/dooflix.js",
-      "id": "dooflix",
-      "name": "DoFlix",
-      "supportedTypes": [
-        "movie",
-        "tv"
-      ],
-      "version": "1.0.2"
-    },
     {
       "description": "Streams from CineCat (cinecat.eu): movies and TV via the site's own sources API \u2014 first-party HLS streams (servers abyssinia, calico, zanzibar, garfield).",
       "filename": "providers/cinecat.js",
@@ -35,5 +14,5 @@
       "version": "1.0.3"
     }
   ],
-  "version": "1.0.1"
+  "version": "1.0.2"
 }
