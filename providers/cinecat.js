@@ -86,6 +86,8 @@ function formatStreamLabel(o) {
 //   them. Quality comes from the stream's label when present, else Unknown.
 //   Title comes from TMDB (same key the DoFlix provider uses); a failed
 //   lookup just omits the title from the label. webOS-safe, never throws.
+//   The backends 502 often and flap per title, so a failed source request
+//   gets one retry — that is what keeps all four servers contributing.
 
 var CINECAT_API = "https://edge.cinecat.eu";
 var CINECAT_REFERER = "https://cinecat.eu/";
@@ -206,21 +208,29 @@ function cinecatOneSource(name, tmdbId, isTv, season, episode) {
   }
   var url =
     CINECAT_API + "/sources/" + encodeURIComponent(name) + "?" + q;
-  return cinecatGetJson(url, { "User-Agent": CINECAT_UA }, CINECAT_TIMEOUT_MS).then(
-    function (j) {
-      if (!j || !j.streams || !j.streams.length) return [];
-      var out = [];
-      for (var i = 0; i < j.streams.length; i++) {
-        var s = j.streams[i] || {};
-        if (s.kind !== "hls") continue;
-        if (typeof s.url !== "string") continue;
-        var u = s.url;
-        if (u.indexOf("http://") !== 0 && u.indexOf("https://") !== 0) continue;
-        out.push({ url: u, quality: cinecatQualityLabel(s.label) });
-      }
-      return out;
+  var headers = { "User-Agent": CINECAT_UA };
+  function parse(j) {
+    if (!j || !j.streams || !j.streams.length) return [];
+    var out = [];
+    for (var i = 0; i < j.streams.length; i++) {
+      var s = j.streams[i] || {};
+      if (s.kind !== "hls") continue;
+      if (typeof s.url !== "string") continue;
+      var u = s.url;
+      if (u.indexOf("http://") !== 0 && u.indexOf("https://") !== 0) continue;
+      out.push({ url: u, quality: cinecatQualityLabel(s.label) });
     }
-  );
+    return out;
+  }
+  // These backends 502 often and flap (a source that 502s for one title
+  // works for the next), so a failed first attempt gets one retry. A
+  // successful response with zero streams is NOT retried.
+  return cinecatGetJson(url, headers, CINECAT_TIMEOUT_MS).then(function (j) {
+    if (j) return parse(j);
+    return cinecatGetJson(url, headers, CINECAT_TIMEOUT_MS).then(function (j2) {
+      return parse(j2);
+    });
+  });
 }
 
 // ---- entry point ----
