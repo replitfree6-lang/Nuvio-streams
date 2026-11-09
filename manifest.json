@@ -1,9 +1,9 @@
 {
-  "description": "Nuvio plugin repository: Toonix (toonix.bond) — TV/anime streams via the site's own streams API (SORA + Legacy servers).",
+  "description": "Nuvio plugin repository: Toonix (toonix.bond) \u2014 TV/anime streams via the site's own streams API (SORA + Legacy servers).",
   "name": "Toonix",
   "scrapers": [
     {
-      "description": "Streams from Toonix (toonix.bond): TV shows and anime through the site's own streams API — SORA server (480p/360p MP4) and Legacy server (direct archive.org MP4).",
+      "description": "Streams from Toonix (toonix.bond): TV shows and anime through the site's own streams API \u2014 SORA server (480p/360p MP4) and Legacy server (direct archive.org MP4).",
       "filename": "providers/toonix.js",
       "id": "toonix",
       "name": "Toonix",
@@ -13,7 +13,7 @@
       "version": "1.0.1"
     },
     {
-      "description": "Streams from DoFlix: movies and TV via the DoFlix app's own sources — Dotflix direct file links (recent/popular movies) and SuperStream HLS (TV + select titles).",
+      "description": "Streams from DoFlix: movies and TV via the DoFlix app's own sources \u2014 Dotflix direct file links (recent/popular movies), GDFlix direct file links (wider movie coverage), and SuperStream HLS (TV + select titles).",
       "filename": "providers/dooflix.js",
       "id": "dooflix",
       "name": "DoFlix",
@@ -21,7 +21,7 @@
         "movie",
         "tv"
       ],
-      "version": "1.0.0"
+      "version": "1.0.1"
     }
   ],
   "version": "1.0.1"

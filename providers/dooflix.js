@@ -11,6 +11,14 @@
 //     lookup). Direct links are Google usercontent files (verified: real
 //     Matroska video data). Cache coverage is movies only in practice
 //     (TV episodes miss); DOTFLIX entries exist for recent/popular titles.
+//  A2. GDFlix fallback — same cache, provider == "GDFLIX" entries (far wider
+//     coverage: The Matrix, Project Hail Mary, ...). The gdflix file page is
+//     a download portal; its "INSTANT DL" button href is a signed
+//     instant.busycdn.xyz URL that 302s to a fastdl-one.pages.dev/?url=
+//     wrapper carrying the googleusercontent file URL, which we emit. The
+//     file page is behind a browser check from datacenter networks (this VM
+//     gets the challenge page, so this source yields nothing here); on a
+//     residential network it may load. Best effort only, fails silent.
 //
 //  B. SuperStream — TMDB external_ids -> imdb_id -> GET
 //     jerso441ceg.com/play/<imdbId> -> playerConfig() extracts the balanced
@@ -404,6 +412,114 @@ function dooflixImdbId(tmdbId, isTv) {
   });
 }
 
+// ---- Source A2: GDFlix fallback (watchkar cache -> gdflix file page) ----
+// GDFLIX entries exist for far more titles than DOTFLIX ones (e.g. The
+// Matrix, Project Hail Mary). Their file pages are download portals: the
+// direct file hides behind the "INSTANT DL" button, whose href is a signed
+// instant.busycdn.xyz URL that 302s to a fastdl-one.pages.dev/?url= wrapper
+// carrying the underlying googleusercontent file URL. We extract the INSTANT
+// DL href from the page HTML, follow it (headers only, body never read),
+// and emit the underlying file URL.
+// Caveat: the file page is behind a browser check from datacenter networks
+// (this VM gets the challenge page, so this source yields nothing here). On
+// a residential network the page may load directly. Best effort only: when
+// the page does not load or has no INSTANT DL link, this source silently
+// yields nothing and the other sources are unaffected.
+
+function dooflixExtractInstantUrl(html) {
+  try {
+    if (!html) return null;
+    var m = html.match(/https:\/\/instant\.busycdn\.xyz\/[A-Za-z0-9_:\-?=&.%]+/);
+    if (!m) return null;
+    var u = m[0].replace(/[.,;]+$/, "");
+    if (u.indexOf("::") < 0) return null;
+    return u;
+  } catch (e) {
+    return null;
+  }
+}
+
+function dooflixResolveInstantUrl(instantUrl, referer) {
+  // Follow the redirect chain; the final URL is the fastdl-one.pages.dev
+  // wrapper carrying the file URL in ?url= (or, if the worker redirects
+  // straight to the file, the googleusercontent URL itself). Body is never
+  // read, only the final URL is used. The file-page Referer is REQUIRED:
+  // without it the link redirects to an ad page instead of the file.
+  var headers = { "User-Agent": DOFLIX_UA };
+  if (referer) headers.Referer = referer;
+  return dooflixFetch(instantUrl, headers, DOFLIX_TIMEOUT_MS)
+    .then(function (resp) {
+      if (!resp) return null;
+      var finalUrl = "";
+      try {
+        finalUrl = resp.url || "";
+      } catch (e) {}
+      if (!finalUrl) return null;
+      if (finalUrl.indexOf("video-downloads.googleusercontent.com") >= 0)
+        return finalUrl;
+      var m = finalUrl.match(/[?&]url=([^&]+)/);
+      if (m && m[1]) {
+        try {
+          var inner = decodeURIComponent(m[1]);
+          if (inner.indexOf("http") === 0) return inner;
+        } catch (e) {}
+      }
+      return null;
+    })
+    .catch(function () {
+      return null;
+    });
+}
+
+function dooflixGdflix(entries, isTv, season, episode, title, push) {
+  var seen = {};
+  var pages = [];
+  for (var i = 0; i < entries.length; i++) {
+    var e = entries[i] || {};
+    if (String(e.provider || "").toUpperCase() !== "GDFLIX") continue;
+    var page = e.stablePageUrl;
+    if (!page || seen[page]) continue;
+    seen[page] = true;
+    pages.push({ page: page, quality: e.quality || "", size: e.size || "" });
+  }
+  if (!pages.length) return Promise.resolve();
+  var jobs = pages.map(function (p) {
+    return dooflixGetText(
+      p.page,
+      { "User-Agent": DOFLIX_UA, Referer: p.page },
+      DOFLIX_TIMEOUT_MS
+    )
+      .then(function (html) {
+        if (!html) return null;
+        var instant = dooflixExtractInstantUrl(html);
+        if (!instant) return null;
+        return dooflixResolveInstantUrl(instant, p.page);
+      })
+      .then(function (fileUrl) {
+        if (!fileUrl) return;
+        var label = formatStreamLabel({
+          title: title,
+          quality: dooflixQualityLabel(p.quality),
+          season: isTv ? season : undefined,
+          episode: isTv ? episode : undefined,
+          size: p.size || undefined,
+          source: "DoFlix",
+          server: "GDFlix"
+        });
+        push({
+          name: label,
+          title: label,
+          url: dooflixFixSpaces(fileUrl),
+          quality: dooflixQualityLabel(p.quality),
+          headers: {},
+          type: "mp4"
+        });
+      })
+      .catch(function () {});
+  });
+  return Promise.all(jobs).then(function () {});
+}
+
 // ---- Source A: Dotflix (watchkar cache -> dotflix.fit share page) ----
 
 function dooflixDotflix(tmdbId, isTv, season, episode, title, push) {
@@ -430,7 +546,9 @@ function dooflixDotflix(tmdbId, isTv, season, episode, title, push) {
         seen[page] = true;
         pages.push({ page: page, quality: e.quality || "", size: e.size || "" });
       }
-      if (!pages.length) return;
+      if (!pages.length) {
+        return dooflixGdflix(j.data, isTv, season, episode, title, push);
+      }
       var jobs = pages.map(function (p) {
         return dooflixGetText(
           p.page,
@@ -493,7 +611,9 @@ function dooflixDotflix(tmdbId, isTv, season, episode, title, push) {
           }
         });
       });
-      return Promise.all(jobs).then(function () {});
+      return Promise.all(jobs).then(function () {
+        return dooflixGdflix(j.data, isTv, season, episode, title, push);
+      });
     }
   );
 }
