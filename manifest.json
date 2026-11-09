@@ -22,6 +22,17 @@
         "tv"
       ],
       "version": "1.0.2"
+    },
+    {
+      "description": "Streams from CineCat (cinecat.eu): movies and TV via the site's own sources API \u2014 first-party HLS streams (servers abyssinia, calico, zanzibar, garfield).",
+      "filename": "providers/cinecat.js",
+      "id": "cinecat",
+      "name": "CineCat",
+      "supportedTypes": [
+        "movie",
+        "tv"
+      ],
+      "version": "1.0.0"
     }
   ],
   "version": "1.0.1"
