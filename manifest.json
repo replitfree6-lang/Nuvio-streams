@@ -1,6 +1,6 @@
 {
-  "description": "Nuvio plugin repository: CineCat (cinecat.eu) \u2014 movies and TV streams via the site's own sources API (first-party HLS streams).",
-  "name": "CineCat",
+  "description": "CineCat (cinecat.eu) and Arc018 (arc018.stream) providers.",
+  "name": "CineCat + Arc018",
   "scrapers": [
     {
       "description": "Streams from CineCat (cinecat.eu): movies and TV via the site's own sources API \u2014 first-party HLS streams (servers abyssinia, calico, zanzibar, garfield).",
@@ -12,7 +12,23 @@
         "tv"
       ],
       "version": "1.0.3"
+    },
+    {
+      "author": "Converted",
+      "contentLanguage": [
+        "en"
+      ],
+      "description": "Streams from Arc018 (arc018.stream): movies and TV via the site's own server list \u2014 Vidmoly HLS streams (the site's arc018 server is behind a proof-of-work captcha gate and is not included).",
+      "enabled": true,
+      "filename": "providers/arc018.js",
+      "id": "arc018",
+      "name": "Arc018",
+      "supportedTypes": [
+        "movie",
+        "tv"
+      ],
+      "version": "1.0.0"
     }
   ],
-  "version": "1.0.2"
+  "version": "1.0.3"
 }
