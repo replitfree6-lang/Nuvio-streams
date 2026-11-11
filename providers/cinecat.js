@@ -69,30 +69,30 @@ function formatStreamLabel(o) {
   }
 }
 
-// CineCat Nuvio provider — v1.0.0
+// CineCat Nuvio provider — v1.0.4
 //
 // Site: https://cinecat.eu — movies + TV, free streaming, own player.
 // Mechanism (verified live 2026-11-10, plain fetch, no auth, no bot wall):
 //   GET https://edge.cinecat.eu/sources/<name>?tmdb=<id>&type=movie|tv
 //       [&season=<n>&episode=<n>]
 //   -> {source: "<name>", streams: [{kind: "hls", url, label?}, ...]}
-//   Sources (GET /sources, group "savannah"): abyssinia, calico, zanzibar,
-//   garfield. Each stream is a first-party HLS media playlist on
-//   edge.cinecat.eu; its segments go through zstream-proxy and REQUIRE
-//   Referer: https://cinecat.eu/ (without it the proxy answers 403 "nope").
-//   Verified: a segment fetched with that Referer is real H.264 video
-//   (The Matrix 720p BluRay remaster). Only kind === "hls" streams are used;
-//   the site also lists third-party "embeds" — this provider never touches
-//   them. Quality comes from the stream's label when present, else Unknown.
+//   Sources (GET /sources): the site's backend sources changed on
+//   2026-11-11 — the old "savannah" group (abyssinia, calico, zanzibar,
+//   garfield) is GONE from the API (all 404 "unknown_source"); the only
+//   source now is "bengal". Each stream is a first-party HLS media
+//   playlist on edge.cinecat.eu; its segments go through zstream-proxy
+//   and REQUIRE Referer: https://cinecat.eu/ (without it the proxy
+//   answers 403 "nope"). Only kind === "hls" streams are used; the site
+//   also lists third-party "embeds" — this provider never touches them.
+//   Quality comes from the stream's label when present, else Unknown.
 //   Title comes from TMDB (same key the DoFlix provider uses); a failed
 //   lookup just omits the title from the label. webOS-safe, never throws.
 //   The backends 502 often and flap per title, so a failed source request
-//   gets one retry — that is what keeps the servers contributing.
-//   Garfield is EXCLUDED (see CINECAT_SOURCES): its playlists load, but its
-//   video segments never arrive — the proxy hangs waiting on Garfield's file
-//   host (verified 2026-11-10: 0 bytes in 60s, all three proxies, Matrix
-//   and Breaking Bad), so its streams only buffer forever in the app. Only
-//   servers whose segments actually serve are emitted.
+//   gets one retry. Bengal's coverage is incomplete: it returns 404
+//   "no_streams" for some titles (e.g. The Matrix, Interstellar) while
+//   serving others (Inception, Dark Knight, Breaking Bad). That is the
+//   source's library, not a provider bug — for those titles only ZCDN
+//   (below) can contribute.
 //   ZCDN is a separate fast path (GET <zcdn>/cdn?tmdb=...&type=... ->
 //   {ready, url}). The user confirmed on their phone that ZCDN gives the
 //   FULL movie. From this VM /cdn only ever returns the 12-second promo
@@ -105,12 +105,12 @@ var CINECAT_REFERER = "https://cinecat.eu/";
 var CINECAT_UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36";
 var CINECAT_TIMEOUT_MS = 12000;
-var CINECAT_SOURCES = ["abyssinia", "calico", "zanzibar"];
-// Garfield is deliberately NOT in this list: its playlists load, but its
-// video segments never arrive (the proxy hangs on Garfield's file host —
-// verified 2026-11-10, 0 bytes in 60s, all three proxies, Matrix and
-// Breaking Bad), so Garfield streams only buffer forever in the app.
-// If it ever recovers, add "garfield" back here.
+var CINECAT_SOURCES = ["bengal"];
+// Fallback used only when GET /sources fails or returns nothing. The old
+// savannah sources (abyssinia, calico, zanzibar, garfield) were removed
+// from the API on 2026-11-11 (all 404 "unknown_source"); bengal is the
+// only backend source now. Garfield is gone with them — it is not listed
+// here because the API no longer knows it at all.
 var CINECAT_ZCDN_HOSTS = [
   "https://zcdn1.2wwlgkfo-31a.workers.dev",
   "https://zcdn2.2wwlgkfo-31a.workers.dev",
@@ -209,8 +209,8 @@ function cinecatSourceNames() {
     for (var i = 0; i < j.sources.length; i++) {
       var n = j.sources[i] && j.sources[i].name;
       if (typeof n === "string" && /^[A-Za-z0-9_-]{1,40}$/.test(n)) {
-        // Skip garfield: its segments never serve (see CINECAT_SOURCES).
-        if (n === "garfield") continue;
+        // (The old savannah sources are gone from the API; only bengal
+        // is listed now. Nothing to skip here.)
         names.push(n);
       }
     }
