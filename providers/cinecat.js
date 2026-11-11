@@ -69,7 +69,7 @@ function formatStreamLabel(o) {
   }
 }
 
-// CineCat Nuvio provider — v1.0.4
+// CineCat Nuvio provider — v1.0.5
 //
 // Site: https://cinecat.eu — movies + TV, free streaming, own player.
 // Mechanism (verified live 2026-11-10, plain fetch, no auth, no bot wall):
@@ -91,14 +91,24 @@ function formatStreamLabel(o) {
 //   gets one retry. Bengal's coverage is incomplete: it returns 404
 //   "no_streams" for some titles (e.g. The Matrix, Interstellar) while
 //   serving others (Inception, Dark Knight, Breaking Bad). That is the
-//   source's library, not a provider bug — for those titles only ZCDN
-//   (below) can contribute.
-//   ZCDN is a separate fast path (GET <zcdn>/cdn?tmdb=...&type=... ->
-//   {ready, url}). The user confirmed on their phone that ZCDN gives the
-//   FULL movie. From this VM /cdn only ever returns the 12-second promo
-//   clip (https://zcdn*/promo/cinecat-4k/v2/master.m3u8 — 3 x 4s segments),
-//   so the provider only emits a ZCDN stream when the returned url is NOT
-//   a "/promo/" URL; a promo url is skipped, never emitted as a stream.
+//   source's library, not a provider bug — for those titles only ZCDN /
+//   Aphrodite (below) can contribute.
+//   ZCDN and Aphrodite are a separate fast path (GET <zcdn>/cdn?tmdb=...
+//   &type=... -> {ready, url}). The user confirmed on their phone that
+//   ZCDN gives the FULL movie, and captured Aphrodite's stream the same
+//   way (Project Hail Mary, TMDB 687163): a totallyacdn.cc/cdn-m3u8
+//   ?payload=... URL, 901 segments / 156.4 min, segments disguised as
+//   .jpg/.png on totallyacdn.cc. Aphrodite has NO endpoint in the site's
+//   code (searched all 59 JS chunks + config.js + watch-page HTML —
+//   nothing) and its player script (DdL3JIpQ.js) just plays the
+//   totallyacdn.cc URL the /cdn endpoint returns. So Aphrodite and ZCDN
+//   resolve to the SAME /cdn stream: the provider emits the /cdn URL
+//   twice, once labelled ZCDN and once labelled Aphrodite, matching the
+//   site's own server list. From this VM /cdn only ever returns the
+//   12-second promo clip (https://zcdn*/promo/cinecat-4k/v2/master.m3u8
+//   — 3 x 4s segments), so the provider only emits a ZCDN/Aphrodite
+//   stream when the returned url is NOT a "/promo/" URL; a promo url is
+//   skipped, never emitted as a stream.
 
 var CINECAT_API = "https://edge.cinecat.eu";
 var CINECAT_REFERER = "https://cinecat.eu/";
@@ -341,22 +351,27 @@ function getStreams(tmdbId, mediaType, season, episode) {
     });
     return Promise.all(jobs).then(function () {
       if (zcdnUrl) {
-        var zcdnLabel = formatStreamLabel({
-          title: title,
-          quality: "Unknown",
-          season: isTv ? sn : undefined,
-          episode: isTv ? ep : undefined,
-          source: "CineCat",
-          server: "ZCDN"
-        });
-        push({
-          name: zcdnLabel,
-          title: zcdnLabel,
-          url: zcdnUrl,
-          quality: "Unknown",
-          headers: { Referer: CINECAT_REFERER, "User-Agent": CINECAT_UA },
-          type: "hls"
-        });
+        // ZCDN and Aphrodite resolve to the same /cdn stream (see header):
+        // emit the URL under both server names, matching the site's list.
+        var cdnServers = ["ZCDN", "Aphrodite"];
+        for (var ci = 0; ci < cdnServers.length; ci++) {
+          var cdnLabel = formatStreamLabel({
+            title: title,
+            quality: "Unknown",
+            season: isTv ? sn : undefined,
+            episode: isTv ? ep : undefined,
+            source: "CineCat",
+            server: cdnServers[ci]
+          });
+          push({
+            name: cdnLabel,
+            title: cdnLabel,
+            url: zcdnUrl,
+            quality: "Unknown",
+            headers: { Referer: CINECAT_REFERER, "User-Agent": CINECAT_UA },
+            type: "hls"
+          });
+        }
       }
       return streams;
     });
