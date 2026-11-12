@@ -1,6 +1,6 @@
 {
-  "description": "CineCat (cinecat.eu) provider.",
-  "name": "CineCat",
+  "description": "CineCat and CNO streaming providers for Nuvio.",
+  "name": "CineCat + CNO",
   "scrapers": [
     {
       "description": "Streams from CineCat (cinecat.eu): movies and TV via the site's own sources API \u2014 first-party HLS streams (server bengal) plus ZCDN and Aphrodite.",
@@ -12,7 +12,21 @@
         "tv"
       ],
       "version": "1.0.5"
+    },
+    {
+      "author": "Converted",
+      "contentLanguage": "en",
+      "description": "Streams from CNO (cno.to): movies and TV via the site's own Server 21 HLS streams (up to 2160p).",
+      "enabled": true,
+      "filename": "providers/cno.js",
+      "id": "cno",
+      "name": "CNO",
+      "supportedTypes": [
+        "movie",
+        "tv"
+      ],
+      "version": "1.0.0"
     }
   ],
-  "version": "1.0.6"
+  "version": "1.0.7"
 }
