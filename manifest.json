@@ -14,10 +14,7 @@
       "version": "1.0.5"
     },
     {
-      "author": "Converted",
-      "contentLanguage": "en",
       "description": "Streams from CNO (cno.to): movies and TV via the site's own Server 21 HLS streams (up to 2160p).",
-      "enabled": true,
       "filename": "providers/cno.js",
       "id": "cno",
       "name": "CNO",
@@ -28,5 +25,5 @@
       "version": "1.0.0"
     }
   ],
-  "version": "1.0.7"
+  "version": "1.0.8"
 }
