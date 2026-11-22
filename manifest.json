@@ -1,6 +1,6 @@
 {
-  "description": "CineCat, CNO, FrameX and MoviesAPI streaming providers for Nuvio.",
-  "name": "CineCat + CNO + FrameX + MoviesAPI",
+  "description": "CineCat, CNO and MoviesAPI streaming providers for Nuvio.",
+  "name": "CineCat + CNO + MoviesAPI",
   "scrapers": [
     {
       "description": "Streams from CineCat (cinecat.eu): movies and TV via the site's own sources API \u2014 first-party HLS streams (server bengal) plus ZCDN and Aphrodite.",
@@ -25,17 +25,6 @@
       "version": "1.0.0"
     },
     {
-      "description": "Streams from FrameX (framextv.cc): movies and TV via the site's own stream API, pinned to the Vidly provider (Baby Dragon I HLS streams) with English subtitles.",
-      "filename": "providers/framextv.js",
-      "id": "framextv",
-      "name": "FrameX",
-      "supportedTypes": [
-        "movie",
-        "tv"
-      ],
-      "version": "1.0.0"
-    },
-    {
       "description": "Streams from MoviesAPI (moviesapi.to): movies and TV via the site's own Vidora API, direct HLS streams.",
       "filename": "providers/moviesapi.js",
       "id": "moviesapi",
@@ -47,5 +36,5 @@
       "version": "1.0.0"
     }
   ],
-  "version": "1.0.9"
+  "version": "1.0.10"
 }
