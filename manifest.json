@@ -1,6 +1,6 @@
 {
-  "description": "CineCat, CNO and MoviesAPI streaming providers for Nuvio.",
-  "name": "CineCat + CNO + MoviesAPI",
+  "description": "CineCat, CNO, MoviesAPI and Zoryva streaming providers for Nuvio.",
+  "name": "CineCat + CNO + MoviesAPI + Zoryva",
   "scrapers": [
     {
       "description": "Streams from CineCat (cinecat.eu): movies and TV via the site's own sources API \u2014 first-party HLS streams (server bengal) plus ZCDN and Aphrodite.",
@@ -34,7 +34,18 @@
         "tv"
       ],
       "version": "1.0.0"
+    },
+    {
+      "description": "Streams from Zoryva (zoryva.me): movies and TV via the site's Atlantic resolver sources, direct HLS streams.",
+      "filename": "providers/zoryva.js",
+      "id": "zoryva",
+      "name": "Zoryva",
+      "supportedTypes": [
+        "movie",
+        "tv"
+      ],
+      "version": "1.0.0"
     }
   ],
-  "version": "1.0.10"
+  "version": "1.0.11"
 }
